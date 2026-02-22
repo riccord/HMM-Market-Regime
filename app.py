@@ -119,17 +119,17 @@ st.sidebar.info("""
 st.title("Quantitative Regime Analysis")
 uploaded_file = st.sidebar.file_uploader("Carica il tuo database CSV", type=["csv"])
 
-if uploaded_file is not None:
-    full_df = pd.read_csv(uploaded_file, index_col=0, parse_dates=True)
-else:
-    try:
-        full_df = pd.read_csv("database_asset_management.csv", index_col=0, parse_dates=True)
-        st.sidebar.info("💡 Caricati dati di default dal repository.")
-    except FileNotFoundError:
-        st.error("File di default non trovato. Carica un CSV manualmente.")
-        st.stop()
+@st.cache_data 
+def load_data():
+    return pd.read_csv("database_asset_management.csv", index_col=0, parse_dates=True)
 
-asset_name = st.sidebar.selectbox("Seleziona l'asset", full_df.columns)
+try:
+    full_df = load_data()
+except FileNotFoundError:
+    st.error("Errore: Il file 'database_asset_management.csv' non è stato trovato nel repository.")
+    st.stop()
+
+asset_name = st.sidebar.selectbox("Seleziona l'asset da analizzare", full_df.columns)
 df_asset = full_df[asset_name]
 
     hmm_class = HMM(df_asset)
@@ -218,4 +218,5 @@ df_asset = full_df[asset_name]
 else:
 
     st.info("Carica un file CSV per iniziare.")
+
 
