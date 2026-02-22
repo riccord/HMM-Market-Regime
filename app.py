@@ -88,24 +88,17 @@ class Returns():
             'Sharpe Ratio': [s0, s1, s2]
         }).set_index('Stato')
 
-# === FUNZIONE PER CALCOLO HMM DINAMICO ===
 def calcola_matrice_hmm(data_subset):
     X = data_subset.values.reshape(-1, 1)
-    
     model = GaussianHMM(n_components=3, covariance_type="full", n_iter=100, random_state=42)
     model.fit(X)
-    
     trans_mat = model.transmat_
-    
     varianze = np.array([model.covars_[i][0][0] for i in range(3)])
-    ordine = np.argsort(varianze) # Indici dal più piccolo al più grande
-    
+    ordine = np.argsort(varianze)
     mat_ordinata = trans_mat[ordine, :][:, ordine]
-    
     nomi = ['Bassa Vol (0)', 'Media Vol (1)', 'Alta Vol (2)']
     return pd.DataFrame(mat_ordinata, index=nomi, columns=nomi)
 
-# === STREAMLIT APP ===
 st.set_page_config(page_title="Analisi Regime", layout="wide")
 
 st.sidebar.title("👤 About Me")
@@ -117,106 +110,77 @@ st.sidebar.info("""
 """)
 
 st.title("Quantitative Regime Analysis")
-uploaded_file = st.sidebar.file_uploader("Carica il tuo database CSV", type=["csv"])
 
-@st.cache_data 
-def load_data():
-    return pd.read_csv("database_asset_management.csv", index_col=0, parse_dates=True)
-
-try:
-    full_df = load_data()
-except FileNotFoundError:
-    st.error("Errore: Il file 'database_asset_management.csv' non è stato trovato nel repository.")
-    st.stop()
-
-asset_name = st.sidebar.selectbox("Seleziona l'asset da analizzare", full_df.columns)
+full_df = pd.read_csv("database_asset_management.csv", index_col=0, parse_dates=True)
+asset_name = st.sidebar.selectbox("Seleziona l'asset", full_df.columns)
 df_asset = full_df[asset_name]
 
-    hmm_class = HMM(df_asset)
-    ret = hmm_class.modellazione()
-    stati, s_alta, s_bassa = hmm_class.regimi(ret)
-    analisi_rit = Returns(stati, ret)
+hmm_class = HMM(df_asset)
+ret = hmm_class.modellazione()
+stati, s_alta, s_bassa = hmm_class.regimi(ret)
+analisi_rit = Returns(stati, ret)
 
-    tab1, tab2, tab3 = st.tabs(["Grafico Regimi", "Performance", "Probabilità (HMM)"])
+tab1, tab2, tab3 = st.tabs(["Grafico Regimi", "Performance", "Probabilità (HMM)"])
 
-    with tab1:
-        st.subheader(f"Equity Line e Regimi: {asset_name}")
-        st.pyplot(hmm_class.plot_streamlit(stati, ret))
+with tab1:
+    st.subheader(f"Equity Line e Regimi: {asset_name}")
+    st.pyplot(hmm_class.plot_streamlit(stati, ret))
 
-    with tab2:
-        st.subheader("Statistiche di Performance")
-        stats = analisi_rit.statistiche()
-        st.table(stats.style.format("{:.2f}"))
-        st.pyplot(analisi_rit.plot_rit_streamlit())
+with tab2:
+    st.subheader("Statistiche di Performance")
+    stats = analisi_rit.statistiche()
+    st.table(stats.style.format("{:.2f}"))
+    st.pyplot(analisi_rit.plot_rit_streamlit())
 
-    with tab3:
-        st.header("Teoria dei Modelli di Markov Nascosti (HMM)")
-        
-        col_teoria_1, col_teoria_2 = st.columns(2)
-        with col_teoria_1:
-            st.markdown("""
-            Un **Hidden Markov Model** è un modello statistico in cui si assume che il sistema sia un processo di Markov con stati non osservabili (nascosti). 
-            Nel nostro caso, lo stato "nascosto" è il **Regime di Volatilità**.
-            
-            La probabilità di transizione $P$ definisce la dinamica del passaggio tra stati:
-            """)
-            st.latex(r"P(S_{t+1} = j \mid S_t = i) = p_{ij}")
-        
-        with col_teoria_2:
-            st.markdown("""
-            La matrice di transizione deve soddisfare la proprietà per cui la somma di ogni riga è pari a 1:
-            """)
-            st.latex(r"\sum_{j=1}^{N} p_{ij} = 1")
-            st.markdown("Dove $N$ è il numero di stati (nel nostro caso 3).")
+with tab3:
+    st.header("Teoria dei Modelli di Markov Nascosti (HMM)")
+    col_teoria_1, col_teoria_2 = st.columns(2)
+    with col_teoria_1:
+        st.markdown("""
+        Un **Hidden Markov Model** è un modello statistico in cui si assume che il sistema sia un processo di Markov con stati non osservabili (nascosti). 
+        Nel nostro caso, lo stato "nascosto" è il **Regime di Volatilità**.
+        """)
+        st.latex(r"P(S_{t+1} = j \mid S_t = i) = p_{ij}")
+    
+    with col_teoria_2:
+        st.markdown("""
+        La matrice di transizione deve soddisfare la proprietà per cui la somma di ogni riga è pari a 1:
+        """)
+        st.latex(r"\sum_{j=1}^{N} p_{ij} = 1")
 
-        st.divider()
-        
-        st.subheader("Analisi Dinamica della Matrice di Transizione")
-        st.write("Usa la barra sottostante per selezionare la finestra temporale di analisi. Il modello HMM ricalcolerà le probabilità basandosi esclusivamente sui dati selezionati.")
+    st.divider()
+    st.subheader("Analisi Dinamica della Matrice di Transizione")
+    
+    date_min = ret.index.min().to_pydatetime()
+    date_max = ret.index.max().to_pydatetime()
+    
+    selected_range = st.slider(
+        "Seleziona l'intervallo temporale:",
+        min_value=date_min,
+        max_value=date_max,
+        value=(date_min, date_max),
+        format="DD/MM/YYYY"
+    )
+    
+    mask = (ret.index >= selected_range[0]) & (ret.index <= selected_range[1])
+    ret_filtrati = ret.loc[mask]
 
-        # Slider per la selezione della data
-        date_min = ret.index.min().to_pydatetime()
-        date_max = ret.index.max().to_pydatetime()
-        
-        selected_range = st.slider(
-            "Seleziona l'intervallo temporale:",
-            min_value=date_min,
-            max_value=date_max,
-            value=(date_min, date_max),
-            format="DD/MM/YYYY"
-        )
-        
-        # Filtraggio dati in base allo slider
-        mask = (ret.index >= selected_range[0]) & (ret.index <= selected_range[1])
-        ret_filtrati = ret.loc[mask]
+    if len(ret_filtrati) > 50:
+        try:
+            mat_hmm = calcola_matrice_hmm(ret_filtrati)
+            col_mat_1, col_mat_2 = st.columns([2, 1])
+            with col_mat_1:
+                fig, ax = plt.subplots(figsize=(6, 4))
+                sns.heatmap(mat_hmm, annot=True, cmap='Blues', fmt='.2%', ax=ax, cbar=False)
+                st.pyplot(fig)
+            with col_mat_2:
+                st.write("**Insights dei Regimi:**")
+                prob_persistenza = np.diag(mat_hmm).mean()
+                st.metric("Persistenza Media", f"{prob_persistenza:.2%}")
+        except:
+            st.error("Errore nel calcolo del modello HMM.")
+    else:
+        st.warning("Seleziona un intervallo più ampio.")
 
-        if len(ret_filtrati) > 50: # Evitiamo errori con troppi pochi dati
-            try:
-                mat_hmm = calcola_matrice_hmm(ret_filtrati)
-                
-                col_mat_1, col_mat_2 = st.columns([2, 1])
-                
-                with col_mat_1:
-                    fig, ax = plt.subplots(figsize=(6, 4))
-                    sns.heatmap(mat_hmm, annot=True, cmap='Blues', fmt='.2%', ax=ax, cbar=False)
-                    ax.set_title(f"Matrice di Transizione HMM ({selected_range[0].year} - {selected_range[1].year})")
-                    st.pyplot(fig)
-                
-                with col_mat_2:
-                    st.write("**Insights dei Regimi:**")
-                    prob_persistenza = np.diag(mat_hmm).mean()
-                    st.metric("Persistenza Media", f"{prob_persistenza:.2%}")
-                    st.write("""
-                    I valori sulla diagonale principale indicano la probabilità che il mercato rimanga nel regime attuale. 
-                    Valori elevati (>90%) indicano regimi molto stabili e persistenti.
-                    """)
-            except:
-                st.error("Errore nel calcolo del modello HMM per le date selezionate. Prova ad ampliare l'intervallo.")
-        else:
-            st.warning("Seleziona un intervallo più ampio per permettere l'allenamento del modello HMM.")
-
-else:
-
-    st.info("Carica un file CSV per iniziare.")
 
 
