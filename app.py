@@ -122,14 +122,15 @@ uploaded_file = st.sidebar.file_uploader("Carica il tuo database CSV", type=["cs
 if uploaded_file is not None:
     full_df = pd.read_csv(uploaded_file, index_col=0, parse_dates=True)
 else:
-    full_df = pd.read_csv("database_asset_management.csv", index_col=0, parse_dates=True)
-    st.sidebar.info("Stai visualizzando i dati di esempio (SPY/GLD).")
+    try:
+        full_df = pd.read_csv("database_asset_management.csv", index_col=0, parse_dates=True)
+        st.sidebar.info("💡 Caricati dati di default dal repository.")
+    except FileNotFoundError:
+        st.error("File di default non trovato. Carica un CSV manualmente.")
+        st.stop()
 
-
-if uploaded_file is not None:
-    full_df = pd.read_csv(uploaded_file, index_col=0, parse_dates=True)
-    asset_name = st.sidebar.selectbox("Seleziona l'asset", full_df.columns)
-    df_asset = full_df[asset_name]
+asset_name = st.sidebar.selectbox("Seleziona l'asset", full_df.columns)
+df_asset = full_df[asset_name]
 
     hmm_class = HMM(df_asset)
     ret = hmm_class.modellazione()
@@ -217,3 +218,4 @@ if uploaded_file is not None:
 else:
 
     st.info("Carica un file CSV per iniziare.")
+
