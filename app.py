@@ -121,6 +121,13 @@ uploaded_file = st.sidebar.file_uploader("Carica il tuo database CSV", type=["cs
 
 if uploaded_file is not None:
     full_df = pd.read_csv(uploaded_file, index_col=0, parse_dates=True)
+else:
+    full_df = pd.read_csv("database_asset_management.csv", index_col=0, parse_dates=True)
+    st.sidebar.info("Stai visualizzando i dati di esempio (SPY/GLD).")
+
+
+if uploaded_file is not None:
+    full_df = pd.read_csv(uploaded_file, index_col=0, parse_dates=True)
     asset_name = st.sidebar.selectbox("Seleziona l'asset", full_df.columns)
     df_asset = full_df[asset_name]
 
@@ -208,4 +215,5 @@ if uploaded_file is not None:
             st.warning("Seleziona un intervallo più ampio per permettere l'allenamento del modello HMM.")
 
 else:
+
     st.info("Carica un file CSV per iniziare.")
